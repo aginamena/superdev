@@ -9,6 +9,10 @@ export default async function Optimize({
   params: Promise<{ full_name: string[] }>;
 }) {
   const { full_name } = await params;
+  const owner = full_name[0];
+  const repo = full_name[1];
+  // owner: full_name[0],
+  // repo: full_name[1],
 
   async function summarizeFile(code: string) {
     // we wait 1 second as the free model only talkes 1 request per second. once we move from the free plan to a paid
@@ -23,16 +27,15 @@ export default async function Optimize({
       in less than 5 sentences then that would be better.\n\n: ${code}`,
     });
 
-    return text;
-    // return `This is a JSON file representing a Node.js project's configuration. It specifies the`;
+    return `This is a JSON file representing a Node.js project's configuration. It specifies the`;
   }
 
   const mainBranch = await githubAPI(
     `GET`,
     `/repos/{owner}/{repo}/branches/{branch}`,
     {
-      owner: full_name[0],
-      repo: full_name[1],
+      owner,
+      repo,
       default_branch: "main",
     }
   );
@@ -40,8 +43,8 @@ export default async function Optimize({
     `GET`,
     `/repos/{owner}/{repo}/git/trees/{tree_sha}?recursive=1`,
     {
-      owner: full_name[0],
-      repo: full_name[1],
+      owner,
+      repo,
       tree_sha: mainBranch.data[0].commit.sha,
     }
   );
@@ -50,14 +53,18 @@ export default async function Optimize({
     (file) => !shouldIgnoreFileOrFolder(file.path)
   );
 
+  var readmeSha = "";
+
   const summarizedFiles: string[] = await Promise.all(
     filteredFilesAndFolders.map(async (file) => {
+      if (file.path === "README.md") readmeSha = file.sha;
+
       const content = await githubAPI(
         `GET`,
         `/repos/{owner}/{repo}/contents/{path}`,
         {
-          owner: full_name[0],
-          repo: full_name[1],
+          owner,
+          repo,
           path: file.path,
           headers: {
             // to accept files between 1mb-100mb only
@@ -74,7 +81,7 @@ export default async function Optimize({
     system: `You are very good at writing professional README for a repository in a markdown editor. You will be given an array where each index
     is a summary of a file in 5 sentences maximum. Write a professional README out of it. You can make the text bold, or use
     italics or horizontal rule for demarcation of sections or a code block or add a table or unorderedlist or orderedlists or add a
-    checked list`,
+    checked list. MAKE SURE YOU DON'T GIVE THE WRONG INFORMATION!`,
     prompt: `Write a professional README for this array of summaries ${summarizedFiles}`,
   });
 
@@ -88,7 +95,10 @@ export default async function Optimize({
       {/* handle the case where the user doesn't have a readme file */}
       <h3>Current readme</h3>
       <h2>Optimized readme</h2>
-      <DisplayOptimzedReadme optimizedReadme={text} />
+      <DisplayOptimzedReadme
+        optimizedReadme={text}
+        data={{ owner, repo, sha: readmeSha }}
+      />
       {/* <div>{text}</div> */}
       {/* <div>{text}</div> */}
     </div>

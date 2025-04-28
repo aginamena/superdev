@@ -9,6 +9,7 @@ const filesAndFoldersToIgnore = [
   ".jpeg",
   ".webp",
   ".ttf",
+  ".bluej",
   ".ico",
   ".gitignore",
   "node_modules/",
